@@ -1,6 +1,7 @@
 from RackSpaceClient import RackSpaceClient
 from Exceptions import *
 import simplejson
+from json2pyo import RawMapper
 
 class IP:
     def __init__(self):
@@ -32,15 +33,12 @@ class Server:
         # Root password
         self.rootPassword = ""
 
-class ServerImage:
-    def __init__(self):
-        self.id = ""
-        self.name = ""
-        self.status = ""
-        self.progress = 0
-        self.serverId = 0
-        self.created = ""
-        self.updated = ""
+class ServerImage(RawMapper):
+    def fixProgress(self):
+        if not hasattr(self.resultObject, 'progress'):
+            return 0
+        else:
+            return self.resultObject.progress
 
 def extractValueOrNone(key, inputDict):
     if isinstance(inputDict, dict):
@@ -85,8 +83,8 @@ class RackSpaceManager:
         servers = self.rsClient.SendRequest(rType = "GET", method = method, data = None, params = None)
         serverList = []
         for server in simplejson.loads(servers['body'])['servers']:
-            srv = parseServer(server, isDetail)
-            serverList.append(srv)
+            srv = RawMapper(server)
+            serverList.append(srv.getObject())
         return serverList
 
 
@@ -99,15 +97,9 @@ class RackSpaceManager:
         images = self.rsClient.SendRequest(rType = "GET", method = method, data = None, params = None)
         imageList = []
         for img in simplejson.loads(images['body'])['images']:
-            image = ServerImage()
-            image.id = img['id']
-            image.name = img['name']
-            image.serverId = extractValueOrNone("serverId", img)
-            image.status = extractValueOrNone("status", img)
-            image.progress = extractValueOrNone("progress", img)
-            image.created = extractValueOrNone("created", img)
-            image.updated = extractValueOrNone("updated", img)
-            imageList.append(image)
+            image = ServerImage(img)
+            image.customMapper('progress', 'self.fixProgress()')
+            imageList.append(image.getObject())
         return imageList
 
     def CreateServer(self, name, imageId, flavorId, metadata = None, personality = None):
