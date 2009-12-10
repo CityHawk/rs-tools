@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+
+"""A tool to list currently available server flavors."""
+
+import sys
+import getopt
+
+from RackSpaceManager import RackSpaceManager
+from Exceptions import *
+
+if __name__ == "__main__":
+
+    manager = RackSpaceManager()
+
+    try:
+        flavors = manager.ListFlavors(isDetail = True)
+    except RackSpaceException, e:
+        print e
+        sys.exit(2)
+
+    for flavor in flavors:
+        print "%6s %-20s %8d %8d" % (flavor.id, flavor.name, flavor.ram, flavor.disk)

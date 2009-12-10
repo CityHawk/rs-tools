@@ -14,8 +14,15 @@ class Server(RawMapper):
     def mapState(self):
         """mapState custom mapper for state objects"""
         so = self.RawClass()
-        setattr(so, 'status', self.resultObject.status)                
-        setattr(so, 'progress', self.resultObject.progress)                
+        if hasattr(self.resultObject, 'status'):
+            setattr(so, 'status', self.resultObject.status)
+        else:
+            setattr(so, 'status', None)
+            
+        if hasattr(self.resultObject, 'progress'):
+            setattr(so, 'progress', self.resultObject.progress)                
+        else:
+            setattr(so, 'progress', None)
         return so
 
 
@@ -79,7 +86,9 @@ class RackSpaceManager:
         # parsing response
 # TODO: parse response, handle errors
         if response["code"] == 202:
-            srv = Server(server)
+            srv = Server(simplejson.loads(response['body'])['server'])
+            srv.setAliasMap({'rootPassword': 'adminPass'})
+            srv.makeAliasMap()
             return srv.getObject()
         raise RackSpaceException()
 
@@ -93,6 +102,86 @@ class RackSpaceManager:
         if response["code"] != 202:
             # Something wrong
             raise RackSpaceException()
+    
+    def ListFlavors(self, isDetail = False):
+        """Returns a list of flavors"""
+        if isDetail:
+            method = "/flavors/detail"
+        else:
+            method = "/flavors"
+        flavors = self.rsClient.SendRequest(rType = "GET", method = method, data = None, params = None)
+        flavorsList = []
+
+        for flavor in simplejson.loads(flavors['body'])['flavors']:
+            fl = RawMapper(flavor)
+            flavorsList.append(fl.getObject())
+        return flavorsList
+
+    def UpdateServer(self, serverId, name = None, password = None):
+        # Changes server name and root password.
+        srv = {}
+        if name is not None:
+            srv["name"] = name
+        if password is not None:
+            srv["adminPass"] = password
+
+        request = simplejson.dumps({"server": srv})
+
+        try:
+            response = self.rsClient.SendRequest(rType="PUT", method = "/servers/" + serverId, data = request, params = None)
+        except RackSpaceException:
+            raise
+        if response["code"] != 204:
+            # Error
+            raise RackSpaceException()
+
+    def RebootServer(self, serverId, hardReboot = False):
+        # Reboot specified server
+        rtype = "SOFT"
+        if hardReboot:
+            rtype = "HARD"
+
+        req = {"reboot" : {"type": rtype}}
+        request = simplejson.dumps(req)
+
+        try:
+            response = self.rsClient.SendRequest(rType="POST", method = "/servers/" + serverId + "/action", data = request, params = None)
+        except RackSpaceException:
+            raise
+        if response["code"] != 202:
+            # Error
+            raise RackSpaceException()
+
+    def CreateImage(self, serverId, name):
+        # Create custom image from specified server
+        req = {"image" : {"serverId": serverId, "name": name}}
+        request = simplejson.dumps(req)
+
+        try:
+            response = self.rsClient.SendRequest(rType="POST", method = "/images", data = request, params = None)
+        except RackSpaceException:
+            raise
+        if response["code"] != 202:
+            # Error
+            raise RackSpaceException()
+        image = ServerImage(simplejson.loads(response['body'])['image'])
+        image.customMapper('progress', 'self.fixProgress()')
+
+        return image
+
+    def DeleteImage(self, imageId):
+        # Delete server image specified by id
+        try:
+            response = self.rsClient.SendRequest(rType="DELETE", method = "/images/"+imageId, data = None, params = None)
+        except RackSpaceException:
+            raise
+        if response["code"] != 204:
+            # Something wrong
+            raise RackSpaceException()
+
+
+
+
 
 
 
