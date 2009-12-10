@@ -3,35 +3,21 @@ from Exceptions import *
 import simplejson
 from json2pyo import RawMapper
 
-class IP:
-    def __init__(self):
-        self.ip = ""
-        self.isPublic = False
+class Server(RawMapper):
+    def __init__(self, srv):
+        RawMapper.__init__(self, srv)
+        self.customMapper('state', "self.mapState()")
+        self.clearProperty('status')
+        self.clearProperty('progress')
+        
 
-class State:
-    def __init__(self):
-        self.status = ""
-        self.progress = 0
+    def mapState(self):
+        """mapState custom mapper for state objects"""
+        so = self.RawClass()
+        setattr(so, 'status', self.resultObject.status)                
+        setattr(so, 'progress', self.resultObject.progress)                
+        return so
 
-class Server:
-    def __init__(self):
-        # Server id
-        self.id = ""
-
-        # Server name
-        self.name = ""
-
-        # Additional description
-        self.description = ""
-
-        # List of ip addresses
-        self.ip = []
-
-        # Server state
-        self.state = State()
-
-        # Root password
-        self.rootPassword = ""
 
 class ServerImage(RawMapper):
     def fixProgress(self):
@@ -39,35 +25,6 @@ class ServerImage(RawMapper):
             return 0
         else:
             return self.resultObject.progress
-
-def extractValueOrNone(key, inputDict):
-    if isinstance(inputDict, dict):
-        return inputDict.get(key, None)
-    return None
-
-def parseServer(server, isDetail = False, isPassword = False):
-    srv = Server()
-    srv.id = server['id']
-    srv.name = server['name']
-    if isDetail:
-        state = State()
-        state.status = server.get('status', None)
-        state.progress = server.get('progress', None)
-        srv.state = state
-        # parse IP list
-        def parse_ips(addresses, isPublic):
-            res = []
-            for addr in addresses:
-                s_addr = IP()
-                s_addr.ip = addr
-                s_addr.isPublic = isPublic
-                res.append(s_addr)
-                return res
-        srv.ip.append(parse_ips(server['addresses']['public'], True))
-        srv.ip.append(parse_ips(server['addresses']['private'], False))
-        if isPassword:
-            srv.rootPassword = server['adminPass']
-    return srv
 
 
 class RackSpaceManager:
@@ -83,7 +40,7 @@ class RackSpaceManager:
         servers = self.rsClient.SendRequest(rType = "GET", method = method, data = None, params = None)
         serverList = []
         for server in simplejson.loads(servers['body'])['servers']:
-            srv = RawMapper(server)
+            srv = Server(server)
             serverList.append(srv.getObject())
         return serverList
 
@@ -122,8 +79,8 @@ class RackSpaceManager:
         # parsing response
 # TODO: parse response, handle errors
         if response["code"] == 202:
-            server = parseServer(simplejson.loads(response['body'])['server'], True, True)
-            return server
+            srv = Server(server)
+            return srv.getObject()
         raise RackSpaceException()
 
 

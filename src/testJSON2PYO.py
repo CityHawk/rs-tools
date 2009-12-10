@@ -17,8 +17,17 @@ class TestObjectCreation(unittest.TestCase):
     
     def testCoreCreation2(self):
         o = RawMapper(self.sampleObject).getObject()
-        pprint(inspect.getmembers(o.c))
         assert o.c.c2 == 'bar'
+
+    def testCoreCreation3(self):
+        o = RawMapper(self.sampleObject).getObject()
+        assert not hasattr(o, 'c1')
+
+    def testCoreDeletion(self):
+        rm = RawMapper(self.sampleObject)
+        rm.clearProperty('d')
+        o = rm.getObject()
+        assert not hasattr(o, 'd')
 
 if __name__ == "__main__":
     unittest.main()

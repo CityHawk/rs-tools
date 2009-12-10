@@ -20,15 +20,15 @@ class RawMapper:
         """
         self.aliasMap = mapHash
 
-    def makeItAProperty(self, object, inDict):
+    def makeItAProperty(self, obj, inDict):
         """makeItAProperty core method"""
         for i in inDict:
             if type(inDict[i]) is dict:
                 to = self.RawClass()
                 self.makeItAProperty(to, inDict[i])
-                setattr(self.resultObject, i, to)
+                setattr(obj, i, to)
             else:
-                setattr(self.resultObject, i, inDict[i])
+                setattr(obj, i, inDict[i])
 
     def makeAliasMap(self):
         """makeAliasMap used to map properties to properties"""
