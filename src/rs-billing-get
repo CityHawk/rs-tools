@@ -25,66 +25,54 @@ class BillingRSClient:
             sys.exit(1)
         self.login = config.get('web', 'login')
         self.passwd = config.get('web', 'passwd')
+    
     def authenticate(self):
         """authenticates to the web interface and sets cookie"""
-        self.cookie = self.makeRequest(rtype='GET', rurl='/pages/Login.jsp').getheader('set-cookie')
+        self.cookie = (self.makeRequest(rtype='GET', rurl='/pages/Login.jsp'))[0].getheader('set-cookie')
         self.headers['set-cookie'] = self.cookie
         self.headers['cookie'] = self.cookie
-        self.makeRequest(rtype='POST', rurl='/Login.do', rparams=urllib.urlencode({'username': login, 'password': passwd}), rheaders=self.headers)
+        self.makeRequest(rtype='POST', rurl='/Login.do', rparams=urllib.urlencode({'username': self.login, 'password': self.passwd}), rheaders=self.headers)
 
 
-
-    def makeRequest(self,rtype, rurl, rparams='', rheaders):
+    def makeRequest(self,rtype, rurl, rparams='', rheaders={}):
         """makeRequest is a wrapper to do HTTPRequest"""
         try:
             conn = HTTPSConnection(self.host, '443')
-            conn.request('GET', authURL, '', headers=self.headers)
+            conn.request(rtype, rurl, rparams, headers=rheaders)
             response = conn.getresponse()
+            body = response.read()
         except Exception, e:
             raise e
         finally:
             conn.close()
-        return response
+        return response, body
 
     def getBillingInfo(self):
         """This makes a deal!"""
-        
-authURL = "/pages/Login.jsp"
+        rawrespdata = self.makeRequest(rtype = 'GET', rurl = '/CloudServers/ViewUsageReports.do', rheaders = self.headers)
+        #print rawrespdata[1]
+        rawtabdata = None
+        for l in (rawrespdata[1]).split('\n'):
+            if 'tableData0' in l:
+                rawtabdata = l
+            #else:
+                #print l
+
+        if rawtabdata:
+            rawtabdata = rawtabdata.replace("\\\"", '\"')
+            rawtabdata = rawtabdata.lstrip(' ')
+            rawtabdata = rawtabdata.lstrip('tableData0:')
+            rawtabdata = rawtabdata.lstrip('\"')
+            rawtabdata = rawtabdata.rstrip("\",")
+            tdict = eval(rawtabdata)
+            return tdict
+        else:
+            return None
+                    
 
 
-conn = HTTPSConnection(host, '443')
-conn.request('GET', authURL, '', headers=headers)
-response = conn.getresponse()
-
-cookie = response.getheader('set-cookie')
-conn.close()
-conn = HTTPSConnection(host, '443')
-headers['set-cookie'] = cookie
-headers['cookie'] = cookie
-conn.request('POST', '/Login.do', urllib.urlencode({'username': login, 'password': passwd}), headers)
-authresponse = conn.getresponse()
-
-conn.close()
-conn = HTTPSConnection(host, '443')
-conn.request('GET', '/CloudServers/ViewUsageReports.do', '', headers)
-tableresponse = conn.getresponse()
-data = tableresponse.read()
-conn.close()
-
-
-marker = 'tableData'
-for lin in data.split('\n'):
-    if marker in lin:
-        rawbilltable = lin
-
-rawbilltable = rawbilltable.replace('   tableData0:', '')
-rawbilltable = rawbilltable.replace("\\\"", '\"')
-rawbilltable = rawbilltable.lstrip("\"")
-rawbilltable = rawbilltable.rstrip("\",")
-
-
-billtable = eval(rawbilltable)
-
-pprint(billtable)
-
+b = BillingRSClient() 
+b.authenticate()
+res = b.getBillingInfo()
+pprint(res['rows'])
 
